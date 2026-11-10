@@ -1,0 +1,33 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Watch Dial Ring -->
+    <path
+        android:strokeColor="#00F5FF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M34,24 A34,34 0 1,1 74,24" />
+    <path
+        android:strokeColor="#3A86FF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M44,18 L64,18" />
+    <path
+        android:strokeColor="#3A86FF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M44,90 L64,90" />
+    <!-- VEDA 'V' Glyph -->
+    <path
+        android:strokeColor="#00F5FF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M40,42 L54,68 L68,42" />
+    <!-- Center Tech Core -->
+    <path
+        android:fillColor="#00F5FF"
+        android:pathData="M54,51 A3,3 0 1,0 54,57 A3,3 0 1,0 54,51" />
+</vector>

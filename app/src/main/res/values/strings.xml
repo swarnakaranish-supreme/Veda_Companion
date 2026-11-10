@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">VEDA Companion</string>
+    <string name="notification_channel_name">VEDA Smartwatch Service</string>
+    <string name="notification_channel_desc">Maintains persistent BLE connection to VEDA Smartwatch</string>
+    <string name="notification_listener_label">VEDA Notification Forwarder</string>
+</resources>
