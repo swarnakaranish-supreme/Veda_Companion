@@ -250,10 +250,28 @@ object BleProtocol {
 
     // ========================================================================
     // VEDA V2 CONFIGURATION & WATCH STUDIO PROTOCOL
-    // Packets: "C|FACE|<idx>", "C|BRI|<0..255>", "C|TO|<sec>", "C|FMT|<12|24>|<fmt>"
+    // Packets: "C|FACE|<idx>", "C|BRI|<0..255>", "C|TO|<sec>", "C|FMT|<12|24>|<fmt>",
+    //          "C|NOTIF_TO|<sec>", "C|CUSTOM|<style>|<color>|<widgetsMask>|<customLabel>"
     // ========================================================================
     fun buildSelectFacePacket(faceIndex: Int): String {
-        return "C|FACE|${faceIndex.coerceIn(0, 7)}"
+        return "C|FACE|${faceIndex.coerceIn(0, 8)}"
+    }
+
+    fun buildCustomFacePacket(
+        style: Int,
+        accentColorRgb565: Int,
+        widgetsMask: Int,
+        customLabel: String
+    ): String {
+        val safeStyle = style.coerceIn(0, 3)
+        val safeColor = accentColorRgb565.coerceIn(0, 65535)
+        val safeWidgets = widgetsMask.coerceIn(0, 255)
+        val safeLabel = sanitizeField(customLabel, 15)
+        return "C|CUSTOM|$safeStyle|$safeColor|$safeWidgets|$safeLabel"
+    }
+
+    fun buildNotificationTimeoutPacket(timeoutSeconds: Int): String {
+        return "C|NOTIF_TO|${timeoutSeconds.coerceIn(3, 60)}"
     }
 
     fun buildBrightnessPacket(brightnessPercent: Int): String {

@@ -97,6 +97,7 @@ fun WatchRemoteControlScreen(
     // Local state for interactive controls
     var brightnessSlider by remember { mutableFloatStateOf(60f) }
     var selectedTimeoutSec by remember { mutableIntStateOf(10) }
+    var selectedNotifTimeoutSec by remember { mutableIntStateOf(10) }
     var dndActive by remember { mutableStateOf(false) }
     var alarmHour by remember { mutableIntStateOf(7) }
     var alarmMinute by remember { mutableIntStateOf(0) }
@@ -113,7 +114,8 @@ fun WatchRemoteControlScreen(
         "Health Dashboard",
         "Time & Date Minimal",
         "Data Focus",
-        "VEDA Signature"
+        "VEDA Signature",
+        "Custom Studio"
     )
 
     val timeoutOptions = listOf(5, 10, 20, 30, 60)
@@ -291,6 +293,51 @@ fun WatchRemoteControlScreen(
                         ) {
                             Text(
                                 text = "${sec}s",
+                                style = Typography.labelSmall.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                                color = if (isSelected) AccentCyan else TextPrimary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Notification Auto-Dismiss Duration",
+                    style = Typography.bodyMedium,
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(5, 10, 15, 30).forEach { sec ->
+                        val isSelected = sec == selectedNotifTimeoutSec
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(VedaRadii.sm))
+                                .background(if (isSelected) AccentCyan.copy(alpha = 0.15f) else SurfaceElevated)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) AccentCyan else StrokeSubtle,
+                                    shape = RoundedCornerShape(VedaRadii.sm)
+                                )
+                                .clickable {
+                                    selectedNotifTimeoutSec = sec
+                                    if (isConnected) {
+                                        coroutineScope.launch {
+                                            bleManager.sendPayloadDirect(BleProtocol.buildNotificationTimeoutPacket(sec))
+                                        }
+                                        lastCommandAck = "NOTIF TO ${sec}s SENT"
+                                    }
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (sec == 10) "10s (Opt)" else "${sec}s",
                                 style = Typography.labelSmall.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
                                 color = if (isSelected) AccentCyan else TextPrimary
                             )

@@ -78,6 +78,7 @@ fun WatchPreviewCanvas(
                 5 -> drawTimeDateMinimal(w, h, hour, minute, dateStr)
                 6 -> drawDataFocus(w, h, timeStr, secStr, dateStr)
                 7 -> drawVedaSignature(w, h, timeStr, dateStr)
+                8 -> drawCustomFace(w, h, timeStr, dateStr)
                 else -> drawMinimalDigital(w, h, timeStr, secStr, dateStr)
             }
         }
@@ -399,5 +400,56 @@ private fun DrawScope.drawVedaSignature(w: Float, h: Float, timeStr: String, dat
             isAntiAlias = true
         }
         drawText("AEROSPACE CHRONO", w / 2f, h * 0.78f, subPaint)
+    }
+}
+
+// 9. CUSTOM STUDIO FACE
+private fun DrawScope.drawCustomFace(w: Float, h: Float, timeStr: String, dateStr: String) {
+    drawRoundRect(
+        color = Color(0xFF141F2B),
+        topLeft = Offset(w * 0.05f, h * 0.05f),
+        size = Size(w * 0.9f, h * 0.9f),
+        cornerRadius = CornerRadius(16.dp.toPx()),
+        style = Stroke(width = 1.5.dp.toPx())
+    )
+
+    drawContext.canvas.nativeCanvas.apply {
+        val labelPaint = android.graphics.Paint().apply {
+            color = 0xFF37D7F2.toInt()
+            textSize = w * 0.09f
+            typeface = android.graphics.Typeface.MONOSPACE
+            isFakeBoldText = true
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        drawText("VEDA CUSTOM", w / 2f, h * 0.22f, labelPaint)
+
+        val timePaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = w * 0.22f
+            typeface = android.graphics.Typeface.MONOSPACE
+            isFakeBoldText = true
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        drawText(timeStr, w / 2f, h * 0.54f, timePaint)
+
+        val widgetPaint = android.graphics.Paint().apply {
+            color = 0xFF37D7F2.toInt()
+            textSize = w * 0.065f
+            typeface = android.graphics.Typeface.SANS_SERIF
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        drawText("HR: 72  SpO2: 98%", w / 2f, h * 0.74f, widgetPaint)
+
+        val datePaint = android.graphics.Paint().apply {
+            color = 0xFF91A2B5.toInt()
+            textSize = w * 0.055f
+            typeface = android.graphics.Typeface.SANS_SERIF
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        drawText("SAT $dateStr • LINK OK", w / 2f, h * 0.86f, datePaint)
     }
 }

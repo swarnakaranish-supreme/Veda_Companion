@@ -24,19 +24,89 @@ class WatchStudioViewModel(application: Application) : AndroidViewModel(applicat
     private val _config = MutableStateFlow(WatchConfig())
     val config: StateFlow<WatchConfig> = _config.asStateFlow()
 
+    private val _customFace = MutableStateFlow(com.anish.veda.data.model.CustomWatchFaceState())
+    val customFace: StateFlow<com.anish.veda.data.model.CustomWatchFaceState> = _customFace.asStateFlow()
+
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
     private val _syncSuccessNotice = MutableStateFlow<String?>(null)
     val syncSuccessNotice: StateFlow<String?> = _syncSuccessNotice.asStateFlow()
 
+    private val _notifTimeoutSec = MutableStateFlow(10)
+    val notifTimeoutSec: StateFlow<Int> = _notifTimeoutSec.asStateFlow()
+
     fun selectFace(index: Int) {
-        _config.value = _config.value.copy(selectedFaceIndex = index.coerceIn(0, 7))
+        _config.value = _config.value.copy(selectedFaceIndex = index.coerceIn(0, 8))
         // Auto-send face index change immediately if connected
         viewModelScope.launch {
             if (connectionState.value.isConnected) {
                 bleManager.sendPayloadDirect(BleProtocol.buildSelectFacePacket(index))
             }
+        }
+    }
+
+    fun updateCustomStyle(style: Int) {
+        _customFace.value = _customFace.value.copy(style = style.coerceIn(0, 3))
+    }
+
+    fun updateCustomColor(rgb565: Int, name: String) {
+        _customFace.value = _customFace.value.copy(accentColorRgb565 = rgb565, colorName = name)
+    }
+
+    fun toggleCustomHeartRate(show: Boolean) {
+        _customFace.value = _customFace.value.copy(showHeartRate = show)
+    }
+
+    fun toggleCustomSpO2(show: Boolean) {
+        _customFace.value = _customFace.value.copy(showSpO2 = show)
+    }
+
+    fun toggleCustomDate(show: Boolean) {
+        _customFace.value = _customFace.value.copy(showDate = show)
+    }
+
+    fun toggleCustomSeconds(show: Boolean) {
+        _customFace.value = _customFace.value.copy(showSeconds = show)
+    }
+
+    fun toggleCustomStatus(show: Boolean) {
+        _customFace.value = _customFace.value.copy(showStatus = show)
+    }
+
+    fun updateCustomLabel(label: String) {
+        _customFace.value = _customFace.value.copy(customLabel = label.take(15))
+    }
+
+    fun setNotificationTimeout(seconds: Int) {
+        val safeSec = seconds.coerceIn(3, 60)
+        _notifTimeoutSec.value = safeSec
+        viewModelScope.launch {
+            if (connectionState.value.isConnected) {
+                bleManager.sendPayloadDirect(BleProtocol.buildNotificationTimeoutPacket(safeSec))
+            }
+        }
+    }
+
+    fun applyCustomFaceToWatch() {
+        viewModelScope.launch {
+            if (!connectionState.value.isConnected) {
+                _syncSuccessNotice.value = "Watch disconnected. Connect first."
+                return@launch
+            }
+            val cf = _customFace.value
+            val packet = BleProtocol.buildCustomFacePacket(
+                style = cf.style,
+                accentColorRgb565 = cf.accentColorRgb565,
+                widgetsMask = cf.calculateWidgetsMask(),
+                customLabel = cf.customLabel
+            )
+            bleManager.sendPayloadDirect(packet)
+            _config.value = _config.value.copy(selectedFaceIndex = 8)
+            logRepository.log("WATCH_STUDIO", "Custom watch face '${cf.customLabel}' applied to physical watch.")
+            _syncSuccessNotice.value = "Custom Watch Face Applied to Watch!"
+            delay(3000)
+            _syncSuccessNotice.value = null
         }
     }
 

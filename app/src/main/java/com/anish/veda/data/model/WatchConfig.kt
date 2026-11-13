@@ -63,5 +63,33 @@ val VedaWatchFaces = listOf(
         name = "VEDA Signature",
         tag = "BRAND FLAGSHIP",
         description = "Signature angular geometry, electric cyan chevrons, and dual-time readouts."
+    ),
+    WatchFaceMeta(
+        index = 8,
+        name = "Custom Studio",
+        tag = "USER DESIGNED",
+        description = "Personalized custom watch face crafted directly in VEDA Companion Studio."
     )
 )
+
+data class CustomWatchFaceState(
+    val style: Int = 0, // 0: Bold Digital, 1: Minimalist, 2: Cyberpunk, 3: Sport
+    val accentColorRgb565: Int = 0x07FF, // COLOR_CYAN (0x07FF)
+    val colorName: String = "Neon Cyan",
+    val showHeartRate: Boolean = true,
+    val showSpO2: Boolean = true,
+    val showDate: Boolean = true,
+    val showSeconds: Boolean = true,
+    val showStatus: Boolean = true,
+    val customLabel: String = "VEDA"
+) {
+    fun calculateWidgetsMask(): Int {
+        var mask = 0
+        if (showHeartRate) mask = mask or (1 shl 0)
+        if (showSpO2) mask = mask or (1 shl 1)
+        if (showDate) mask = mask or (1 shl 2)
+        if (showSeconds) mask = mask or (1 shl 3)
+        if (showStatus) mask = mask or (1 shl 4)
+        return mask
+    }
+}
