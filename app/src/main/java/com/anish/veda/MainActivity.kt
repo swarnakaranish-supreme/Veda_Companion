@@ -6,10 +6,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.anish.veda.ui.navigation.VedaNavGraph
 import com.anish.veda.ui.theme.VedaBlack
 import com.anish.veda.ui.theme.VedaTheme
+import com.anish.veda.ui.theme.getAccentColor
 
 class MainActivity : ComponentActivity() {
 
@@ -17,13 +20,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Notice: Do NOT automatically start VedaBleForegroundService here!
-        // Android 14/15 requires BLUETOOTH_CONNECT/BLUETOOTH_SCAN runtime permissions
-        // before starting a connectedDevice foreground service.
-        // The service is started safely only after permissions are granted and user initiates connection.
+        val preferencesRepository = (application as VedaApplication).preferencesRepository
 
         setContent {
-            VedaTheme {
+            val settings by preferencesRepository.settingsFlow.collectAsState()
+            val currentAccent = getAccentColor(settings.accentColorIndex)
+
+            VedaTheme(
+                accentColor = currentAccent,
+                themePreset = settings.themePreset
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = VedaBlack

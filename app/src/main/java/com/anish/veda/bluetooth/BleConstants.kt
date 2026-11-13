@@ -10,6 +10,7 @@ object BleConstants {
 
     val SERVICE_UUID: UUID = UUID.fromString(SERVICE_UUID_STRING)
     val WRITE_CHARACTERISTIC_UUID: UUID = UUID.fromString(WRITE_CHARACTERISTIC_UUID_STRING)
+    val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
     // BLE MTU configurations
     const val DEFAULT_MTU = 23

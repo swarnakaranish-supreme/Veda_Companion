@@ -33,7 +33,19 @@ class PreferencesRepository(context: Context) {
             lastSyncTimestamp = prefs.getLong(KEY_LAST_SYNC_TS, 0L),
             notificationForwardedCount = prefs.getInt(KEY_NOTIF_COUNT, 0),
             callsForwardedCount = prefs.getInt(KEY_CALL_COUNT, 0),
-            accentColorIndex = prefs.getInt(KEY_ACCENT_COLOR, 0)
+            accentColorIndex = prefs.getInt(KEY_ACCENT_COLOR, 0),
+            themePreset = prefs.getString(KEY_THEME_PRESET, "DEFAULT") ?: "DEFAULT",
+            fontScaleIndex = prefs.getInt(KEY_FONT_SCALE, 1),
+            fontFamilyChoice = prefs.getString(KEY_FONT_FAMILY, "DEFAULT") ?: "DEFAULT",
+            interfaceStyle = prefs.getString(KEY_INTERFACE_STYLE, "FUTURISTIC_HUD") ?: "FUTURISTIC_HUD",
+            reducedMotion = prefs.getBoolean(KEY_REDUCED_MOTION, false),
+            startingDialMode = prefs.getInt(KEY_STARTING_DIAL_MODE, 0),
+            dashboardWidgetHealth = prefs.getBoolean(KEY_WIDGET_HEALTH, true),
+            dashboardWidgetAi = prefs.getBoolean(KEY_WIDGET_AI, true),
+            dashboardWidgetQuickActions = prefs.getBoolean(KEY_WIDGET_QUICK_ACTIONS, true),
+            quickAction1 = prefs.getString(KEY_QUICK_ACTION_1, "FIND_WATCH") ?: "FIND_WATCH",
+            quickAction2 = prefs.getString(KEY_QUICK_ACTION_2, "WATCH_STUDIO") ?: "WATCH_STUDIO",
+            quickAction3 = prefs.getString(KEY_QUICK_ACTION_3, "DND") ?: "DND"
         )
     }
 
@@ -59,6 +71,18 @@ class PreferencesRepository(context: Context) {
             putInt(KEY_NOTIF_COUNT, updated.notificationForwardedCount)
             putInt(KEY_CALL_COUNT, updated.callsForwardedCount)
             putInt(KEY_ACCENT_COLOR, updated.accentColorIndex)
+            putString(KEY_THEME_PRESET, updated.themePreset)
+            putInt(KEY_FONT_SCALE, updated.fontScaleIndex)
+            putString(KEY_FONT_FAMILY, updated.fontFamilyChoice)
+            putString(KEY_INTERFACE_STYLE, updated.interfaceStyle)
+            putBoolean(KEY_REDUCED_MOTION, updated.reducedMotion)
+            putInt(KEY_STARTING_DIAL_MODE, updated.startingDialMode)
+            putBoolean(KEY_WIDGET_HEALTH, updated.dashboardWidgetHealth)
+            putBoolean(KEY_WIDGET_AI, updated.dashboardWidgetAi)
+            putBoolean(KEY_WIDGET_QUICK_ACTIONS, updated.dashboardWidgetQuickActions)
+            putString(KEY_QUICK_ACTION_1, updated.quickAction1)
+            putString(KEY_QUICK_ACTION_2, updated.quickAction2)
+            putString(KEY_QUICK_ACTION_3, updated.quickAction3)
         }.apply()
         _settingsFlow.value = updated
     }
@@ -102,5 +126,17 @@ class PreferencesRepository(context: Context) {
         private const val KEY_NOTIF_COUNT = "notification_count"
         private const val KEY_CALL_COUNT = "call_count"
         private const val KEY_ACCENT_COLOR = "accent_color"
+        private const val KEY_THEME_PRESET = "theme_preset"
+        private const val KEY_FONT_SCALE = "font_scale"
+        private const val KEY_FONT_FAMILY = "font_family"
+        private const val KEY_INTERFACE_STYLE = "interface_style"
+        private const val KEY_REDUCED_MOTION = "reduced_motion"
+        private const val KEY_STARTING_DIAL_MODE = "starting_dial_mode"
+        private const val KEY_WIDGET_HEALTH = "widget_health"
+        private const val KEY_WIDGET_AI = "widget_ai"
+        private const val KEY_WIDGET_QUICK_ACTIONS = "widget_quick_actions"
+        private const val KEY_QUICK_ACTION_1 = "quick_action_1"
+        private const val KEY_QUICK_ACTION_2 = "quick_action_2"
+        private const val KEY_QUICK_ACTION_3 = "quick_action_3"
     }
 }

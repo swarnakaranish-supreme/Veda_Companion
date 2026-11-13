@@ -239,4 +239,143 @@ object BleProtocol {
         if (p3 < 0) return false
         return true
     }
+
+    // ========================================================================
+    // VEDA V2 HEALTH TELEMETRY PROTOCOL
+    // Format from Watch: "H|BPM|SPO2|QUALITY"
+    // Commands to Watch: "M|START" / "M|STOP"
+    // ========================================================================
+    const val CMD_START_MEASUREMENT = "M|START"
+    const val CMD_STOP_MEASUREMENT = "M|STOP"
+
+    // ========================================================================
+    // VEDA V2 CONFIGURATION & WATCH STUDIO PROTOCOL
+    // Packets: "C|FACE|<idx>", "C|BRI|<0..255>", "C|TO|<sec>", "C|FMT|<12|24>|<fmt>"
+    // ========================================================================
+    fun buildSelectFacePacket(faceIndex: Int): String {
+        return "C|FACE|${faceIndex.coerceIn(0, 7)}"
+    }
+
+    fun buildBrightnessPacket(brightnessPercent: Int): String {
+        val pwm = (brightnessPercent.coerceIn(0, 100) * 2.55f).toInt()
+        return "C|BRI|$pwm"
+    }
+
+    fun buildTimeoutPacket(timeoutSeconds: Int): String {
+        return "C|TO|${timeoutSeconds.coerceIn(0, 3600)}"
+    }
+
+    fun buildFormatPacket(is24Hour: Boolean, dateFormat: String): String {
+        val hourCode = if (is24Hour) 24 else 12
+        val safeDateFmt = sanitizeField(dateFormat, 15)
+        return "C|FMT|$hourCode|$safeDateFmt"
+    }
+
+    fun buildDndPacket(enabled: Boolean): String {
+        return "C|DND|${if (enabled) 1 else 0}"
+    }
+
+    fun buildSetAlarmPacket(hour: Int, minute: Int, active: Boolean): String {
+        return "A|SET|${hour.coerceIn(0, 23)}|${minute.coerceIn(0, 59)}|${if (active) 1 else 0}"
+    }
+
+    fun buildDeleteAlarmPacket(): String {
+        return "A|DEL"
+    }
+
+    data class HealthPacket(
+        val bpm: Int,
+        val spo2: Int,
+        val quality: Int,
+        val hasFinger: Boolean
+    )
+
+    fun parseHealthPacket(payload: String): HealthPacket? {
+        if (!payload.startsWith("H|")) return null
+        val parts = payload.trim().split('|')
+        if (parts.size < 4) return null
+        return try {
+            val bpm = parts[1].toInt()
+            val spo2 = parts[2].toInt()
+            val quality = parts[3].toInt()
+            val hasFinger = bpm > 0 || spo2 > 0 || quality > 0
+            HealthPacket(
+                bpm = bpm.coerceIn(0, 250),
+                spo2 = spo2.coerceIn(0, 100),
+                quality = quality.coerceIn(0, 100),
+                hasFinger = hasFinger
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // ========================================================================
+    // VEDA V2 HAPTIC PROTOCOL (DRV2605L)
+    // Commands: "V|PLAY|<id>", "V|CFG|<call>|<msg>|<alarm>|<emergency>|<nav>|<nav_eff>", "V|STOP"
+    // ========================================================================
+    fun buildHapticPlayPacket(effectId: Int): String {
+        return "V|PLAY|${effectId.coerceIn(1, 123)}"
+    }
+
+    fun buildHapticConfigPacket(
+        callProfile: Int,
+        msgProfile: Int,
+        alarmProfile: Int,
+        emergencyProfile: Int,
+        navFeedback: Boolean,
+        navEffectId: Int
+    ): String {
+        val navVal = if (navFeedback) 1 else 0
+        return "V|CFG|${callProfile.coerceIn(0, 3)}|${msgProfile.coerceIn(0, 4)}|${alarmProfile.coerceIn(0, 3)}|${emergencyProfile.coerceIn(0, 2)}|$navVal|${navEffectId.coerceIn(1, 123)}"
+    }
+
+    fun buildHapticStopPacket(): String {
+        return "V|STOP"
+    }
+
+    // ========================================================================
+    // VEDA V2 GUARDIAN SAFETY PROTOCOL
+    // Packets: "E|SOS|TRIGGER", "E|SOS|CANCEL", "E|SOS|DISPATCH", "E|CFG|<gesture>|<countdown>"
+    // ========================================================================
+    fun buildEmergencyTriggerPacket(): String = "E|SOS|TRIGGER"
+    fun buildEmergencyCancelPacket(): String = "E|SOS|CANCEL"
+    fun buildGuardianConfigPacket(gestureMode: Int, countdownSeconds: Int): String {
+        return "E|CFG|${gestureMode.coerceIn(0, 1)}|${countdownSeconds.coerceIn(3, 60)}"
+    }
+
+    fun parseEmergencyPacket(payload: String): String? {
+        if (!payload.startsWith("E|SOS|")) return null
+        return payload.removePrefix("E|SOS|").trim()
+    }
+
+    // ========================================================================
+    // VEDA V2 DEVICE MANAGEMENT & DIAGNOSTICS PROTOCOL
+    // Packets: "D|REQ", "D|PING", "D|PONG", "D|INFO|<name>|<fw>|<proto>|<sensors>|<battery>"
+    // ========================================================================
+    fun buildDeviceInfoRequestPacket(): String = "D|REQ"
+    fun buildPingPacket(): String = "D|PING"
+
+    data class DeviceInfoPacket(
+        val watchName: String,
+        val firmwareVersion: String,
+        val protocolVersion: String,
+        val sensorStatus: String,
+        val batteryStatus: String
+    )
+
+    fun parseDeviceInfoPacket(payload: String): DeviceInfoPacket? {
+        if (!payload.startsWith("D|INFO|")) return null
+        val parts = payload.split('|')
+        if (parts.size < 7) return null
+        return DeviceInfoPacket(
+            watchName = parts[2],
+            firmwareVersion = parts[3],
+            protocolVersion = parts[4],
+            sensorStatus = parts[5],
+            batteryStatus = parts[6]
+        )
+    }
+
+    fun isPongPacket(payload: String): Boolean = payload.startsWith("D|PONG")
 }

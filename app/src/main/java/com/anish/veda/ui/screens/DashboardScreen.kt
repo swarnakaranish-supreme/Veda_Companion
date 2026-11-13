@@ -17,21 +17,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.DoNotDisturbOn
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FindReplace
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Watch
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -53,24 +59,40 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.anish.veda.bluetooth.BleConnectionState
-import com.anish.veda.ui.components.CircularStatusGauge
-import com.anish.veda.ui.components.DestructiveOutlinedButton
-import com.anish.veda.ui.components.FuturisticCard
-import com.anish.veda.ui.components.GlowingButton
-import com.anish.veda.ui.components.GlowingOutlinedButton
-import com.anish.veda.ui.components.PulseIndicator
-import com.anish.veda.ui.components.TechBadge
+import com.anish.veda.ui.components.CommandCoreMode
+import com.anish.veda.ui.components.VedaBatteryIndicator
+import com.anish.veda.ui.components.VedaBottomNavBar
+import com.anish.veda.ui.components.VedaCard
+import com.anish.veda.ui.components.VedaCardHeader
+import com.anish.veda.ui.components.VedaCommandCore
+import com.anish.veda.ui.components.VedaEmergencyButton
+import com.anish.veda.ui.components.VedaMetricCard
+import com.anish.veda.ui.components.VedaPillButton
+import com.anish.veda.ui.components.VedaPrimaryButton
+import com.anish.veda.ui.components.VedaPulseDot
+import com.anish.veda.ui.components.VedaRssiBars
+import com.anish.veda.ui.components.VedaSecondaryButton
+import com.anish.veda.ui.components.VedaSensorQualityMeter
+import com.anish.veda.ui.components.VedaStatusChip
+import com.anish.veda.ui.components.VedaTopAppBar
 import com.anish.veda.ui.navigation.Screen
-import com.anish.veda.ui.theme.AlertRed
-import com.anish.veda.ui.theme.BorderNavy
-import com.anish.veda.ui.theme.CyberBlue
-import com.anish.veda.ui.theme.MatrixGreen
-import com.anish.veda.ui.theme.NeonCyan
-import com.anish.veda.ui.theme.TextMuted
-import com.anish.veda.ui.theme.TextWhite
-import com.anish.veda.ui.theme.VedaBlack
-import com.anish.veda.ui.theme.VedaCardNavy
-import com.anish.veda.ui.theme.VedaSurfaceNavy
+import com.anish.veda.ui.theme.AccentCyan
+import com.anish.veda.ui.theme.AccentViolet
+import com.anish.veda.ui.theme.AccentVioletDim
+import com.anish.veda.ui.theme.CanvasDeepBlack
+import com.anish.veda.ui.theme.StatusError
+import com.anish.veda.ui.theme.StatusSuccess
+import com.anish.veda.ui.theme.StatusWarning
+import com.anish.veda.ui.theme.StrokeFocused
+import com.anish.veda.ui.theme.StrokeSubtle
+import com.anish.veda.ui.theme.SurfaceElevated
+import com.anish.veda.ui.theme.SurfaceGraphite
+import com.anish.veda.ui.theme.TextPrimary
+import com.anish.veda.ui.theme.TextSecondary
+import com.anish.veda.ui.theme.TextTertiary
+import com.anish.veda.ui.theme.Typography
+import com.anish.veda.ui.theme.VedaRadii
+import com.anish.veda.ui.theme.VedaSpacing
 import com.anish.veda.utils.Constants
 import com.anish.veda.utils.PermissionUtils
 import com.anish.veda.utils.TimeUtils
@@ -87,6 +109,12 @@ fun DashboardScreen(
     val connectionState by viewModel.connectionState.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val isSyncingTime by viewModel.isSyncingTime.collectAsState()
+
+    val batteryPercent by viewModel.batteryPercent.collectAsState()
+    val heartRate by viewModel.heartRateBpm.collectAsState()
+    val spo2 by viewModel.spo2Percent.collectAsState()
+    val sensorQuality by viewModel.sensorQuality.collectAsState()
+    val isDndActive by viewModel.isDndActive.collectAsState()
 
     var hasBluetoothPermission by remember {
         mutableStateOf(PermissionUtils.hasBluetoothPermissions(context))
@@ -130,236 +158,323 @@ fun DashboardScreen(
         else -> settings.lastDeviceName ?: Constants.DEFAULT_WATCH_NAME
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(VedaBlack)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-    ) {
-        // Top Bar: VEDA Branding & Fast Navigation Icons
-        Row(
+    val watchAddress = when (val state = connectionState) {
+        is BleConnectionState.Connected -> state.deviceAddress
+        is BleConnectionState.Connecting -> state.deviceAddress
+        is BleConnectionState.Reconnecting -> state.deviceAddress
+        else -> settings.lastDeviceAddress
+    }
+
+    val connectionStatusText = when (connectionState) {
+        is BleConnectionState.Connected -> "ONLINE"
+        is BleConnectionState.Connecting -> "CONNECTING..."
+        is BleConnectionState.ConnectedGatt -> "GATT READY"
+        is BleConnectionState.NegotiatingMtu -> "CONFIGURING..."
+        is BleConnectionState.DiscoveringServices -> "HANDSHAKE..."
+        is BleConnectionState.Reconnecting -> "RECONNECTING..."
+        is BleConnectionState.Scanning -> "SCANNING..."
+        is BleConnectionState.Disconnecting -> "DISCONNECTING..."
+        is BleConnectionState.Disconnected -> "OFFLINE"
+        is BleConnectionState.Error -> "LINK FAULT"
+    }
+
+    val connectionStatusColor = when (connectionState) {
+        is BleConnectionState.Connected -> StatusSuccess
+        is BleConnectionState.Connecting,
+        is BleConnectionState.ConnectedGatt,
+        is BleConnectionState.NegotiatingMtu,
+        is BleConnectionState.DiscoveringServices,
+        is BleConnectionState.Reconnecting,
+        is BleConnectionState.Scanning -> StatusWarning
+        is BleConnectionState.Error -> StatusError
+        else -> TextTertiary
+    }
+
+    Scaffold(
+        topBar = {
+            VedaTopAppBar(
+                title = "VEDA V2.1",
+                statusText = connectionStatusText,
+                statusColor = connectionStatusColor,
+                pulsing = connectionState.isConnected,
+                onStatusClick = { navController.navigate(Screen.Diagnostics.route) }
+            )
+        },
+        bottomBar = {
+            VedaBottomNavBar(
+                currentRoute = Screen.Dashboard.route,
+                onNavigate = { route ->
+                    if (route != Screen.Dashboard.route) {
+                        navController.navigate(route) {
+                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
+            )
+        },
+        containerColor = CanvasDeepBlack
+    ) { paddingValues ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = VedaSpacing.lg, vertical = VedaSpacing.md)
         ) {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "VEDA",
-                        color = TextWhite,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 2.sp
+            // Permission Banner (if required)
+            AnimatedVisibility(visible = !hasBluetoothPermission) {
+                VedaCard(
+                    modifier = Modifier.padding(bottom = VedaSpacing.md),
+                    accentColor = StatusWarning
+                ) {
+                    VedaCardHeader(
+                        label = "Bluetooth Permissions Required",
+                        statusText = "ACTION REQUIRED",
+                        statusColor = StatusWarning
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "COMPANION",
-                        color = NeonCyan,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
+                        text = "Android 15 requires Bluetooth permissions to connect to your VEDA smartwatch.",
+                        style = Typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(VedaSpacing.md))
+                    VedaPrimaryButton(
+                        text = "Grant Bluetooth Access",
+                        onClick = {
+                            bluetoothPermissionLauncher.launch(PermissionUtils.getRequiredBluetoothPermissions())
+                        }
                     )
                 }
-                Text(
-                    text = "ESP32-C3 PROTOCOL v1.0",
-                    color = TextMuted,
-                    fontSize = 10.sp,
-                    letterSpacing = 0.5.sp
+            }
+
+            // ====================================================================
+            // VEDA V2.1 COMMAND CORE (6 Interactive Telemetry & Control Modes)
+            // ====================================================================
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = VedaSpacing.xs),
+                contentAlignment = Alignment.Center
+            ) {
+                val connectedState = connectionState as? BleConnectionState.Connected
+                VedaCommandCore(
+                    connectionState = connectionState,
+                    watchName = watchDisplayName,
+                    initialMode = settings.startingDialMode,
+                    heartRate = heartRate,
+                    spo2 = spo2,
+                    sensorQuality = sensorQuality ?: 0,
+                    isMeasuringHealth = false,
+                    rssi = connectedState?.rssi,
+                    lastSyncTimestamp = settings.lastSyncTimestamp,
+                    reducedMotion = settings.reducedMotion,
+                    onCenterClick = { mode ->
+                        when (mode) {
+                            CommandCoreMode.NEURAL -> {
+                                if (connectionState.isConnected) viewModel.syncTime()
+                                else if (!connectionState.isBusy) {
+                                    if (hasBluetoothPermission) viewModel.connect()
+                                    else bluetoothPermissionLauncher.launch(PermissionUtils.getRequiredBluetoothPermissions())
+                                }
+                            }
+                            CommandCoreMode.HEALTH -> navController.navigate(Screen.Health.route)
+                            CommandCoreMode.ENERGY -> navController.navigate(Screen.Diagnostics.route)
+                            CommandCoreMode.CHRONOS -> viewModel.syncTime()
+                            CommandCoreMode.AI -> navController.navigate(Screen.AiAssistant.route)
+                            CommandCoreMode.COMMAND -> {} // Handled via radial overlay
+                        }
+                    },
+                    onDoubleTap = {
+                        navController.navigate(Screen.Diagnostics.route)
+                    },
+                    onRadialAction = { actionKey ->
+                        when (actionKey) {
+                            "WATCH_FACE" -> navController.navigate(Screen.WatchStudio.route)
+                            "BRIGHTNESS" -> navController.navigate(Screen.WatchStudio.route)
+                            "DND" -> viewModel.toggleDnd()
+                            "HEALTH" -> navController.navigate(Screen.Health.route)
+                            "HAPTIC" -> navController.navigate(Screen.HapticStudio.route)
+                            "SYNC" -> viewModel.syncTime()
+                            "POWER" -> viewModel.toggleDnd()
+                            "DIAGNOSTICS" -> navController.navigate(Screen.Diagnostics.route)
+                        }
+                    }
                 )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = { navController.navigate(Screen.Diagnostics.route) },
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(VedaCardNavy)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BugReport,
-                        contentDescription = "Diagnostics",
-                        tint = NeonCyan,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+            Spacer(modifier = Modifier.height(VedaSpacing.md))
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                IconButton(
-                    onClick = { navController.navigate(Screen.GeneralSettings.route) },
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(VedaCardNavy)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = TextWhite,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Centerpiece: Circular Status Gauge
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularStatusGauge(
-                connectionState = connectionState,
-                watchName = watchDisplayName
-            )
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Last Synchronization Banner
-        FuturisticCard(glowBorder = connectionState.isConnected) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            // PRIMARY HERO CARD: Watch Connection & Battery Telemetry
+            VedaCard(
+                accentColor = if (connectionState.isConnected) StatusSuccess else null
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(VedaSurfaceNavy),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Sync,
-                            contentDescription = null,
-                            tint = if (connectionState.isConnected) NeonCyan else TextMuted,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
+                VedaCardHeader(
+                    label = "Wearable Peripheral Link",
+                    statusText = connectionStatusText,
+                    statusColor = connectionStatusColor
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Column {
                         Text(
-                            text = "Last Time Sync",
-                            color = TextMuted,
-                            fontSize = 12.sp
+                            text = watchDisplayName,
+                            style = Typography.headlineMedium,
+                            color = TextPrimary
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = TimeUtils.formatSyncTime(settings.lastSyncTimestamp),
-                            color = TextWhite,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
+                            text = watchAddress ?: "No paired MAC address",
+                            style = Typography.labelSmall,
+                            color = TextTertiary
+                        )
+                    }
+
+                    // Signal bars & live pulse
+                    if (connectionState.isConnected) {
+                        val connectedState = connectionState as? BleConnectionState.Connected
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            VedaRssiBars(rssi = connectedState?.rssi)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            VedaPulseDot(color = StatusSuccess, size = 8.dp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(VedaSpacing.md))
+
+                // Telemetry Data Bar: Battery & Last Synchronization
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(VedaRadii.md))
+                        .background(SurfaceElevated)
+                        .padding(horizontal = VedaSpacing.md, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "WATCH BATTERY",
+                            style = Typography.labelSmall,
+                            color = TextTertiary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        VedaBatteryIndicator(batteryPercent = batteryPercent)
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "LAST SYNC",
+                            style = Typography.labelSmall,
+                            color = TextTertiary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (settings.lastSyncTimestamp > 0)
+                                TimeUtils.formatSyncTime(settings.lastSyncTimestamp)
+                            else
+                                "Never synced",
+                            style = Typography.labelMedium.copy(fontSize = 11.sp),
+                            color = if (settings.lastSyncTimestamp > 0) TextPrimary else TextTertiary
                         )
                     }
                 }
 
-                if (connectionState.isConnected) {
-                    TechBadge(
-                        text = "RTC OK",
-                        icon = Icons.Default.Refresh,
-                        color = MatrixGreen
+                Spacer(modifier = Modifier.height(VedaSpacing.md))
+
+                // Primary Connection Action Button
+                if (!connectionState.isConnected && !connectionState.isBusy) {
+                    VedaPrimaryButton(
+                        text = "Connect VEDA Watch",
+                        onClick = {
+                            if (hasBluetoothPermission) {
+                                viewModel.connect()
+                            } else {
+                                bluetoothPermissionLauncher.launch(PermissionUtils.getRequiredBluetoothPermissions())
+                            }
+                        },
+                        icon = Icons.Default.Bluetooth
+                    )
+                } else if (connectionState.isConnected) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            VedaSecondaryButton(
+                                text = if (isSyncingTime) "Syncing..." else "Quick Sync",
+                                onClick = { viewModel.syncTime() },
+                                icon = Icons.Default.Sync,
+                                enabled = !isSyncingTime
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            VedaSecondaryButton(
+                                text = "Disconnect",
+                                onClick = { viewModel.disconnect() }
+                            )
+                        }
+                    }
+                } else {
+                    VedaSecondaryButton(
+                        text = "Abort Connection",
+                        onClick = { viewModel.disconnect() }
                     )
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Forwarding Status Cards (Notifications & Calls)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Notification Forwarding Status Card
-            FuturisticCard(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { navController.navigate(Screen.NotificationSettings.route) }
-            ) {
+            // ====================================================================
+            // PERSONALIZED WIDGET: BIOMETRIC TELEMETRY (if enabled)
+            // ====================================================================
+            if (settings.dashboardWidgetHealth) {
+                Spacer(modifier = Modifier.height(VedaSpacing.md))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = null,
-                        tint = if (settings.forwardNotifications) NeonCyan else TextMuted,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    PulseIndicator(
-                        color = if (settings.forwardNotifications) MatrixGreen else AlertRed,
-                        size = 8.dp,
-                        isPulsing = settings.forwardNotifications && connectionState.isConnected
-                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        VedaMetricCard(
+                            label = "Heart Rate",
+                            value = heartRate?.toString(),
+                            unit = "BPM",
+                            icon = Icons.Default.Favorite,
+                            accentColor = StatusError,
+                            onClick = { navController.navigate(Screen.Health.route) }
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        VedaMetricCard(
+                            label = "Blood O2",
+                            value = spo2?.toString(),
+                            unit = "%",
+                            icon = Icons.Default.WaterDrop,
+                            accentColor = AccentCyan,
+                            onClick = { navController.navigate(Screen.Health.route) }
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "Notifications",
-                    color = TextWhite,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = if (settings.forwardNotifications) "Active (${settings.notificationForwardedCount})" else "Paused",
-                    color = if (settings.forwardNotifications) MatrixGreen else TextMuted,
-                    fontSize = 12.sp
-                )
             }
 
-            // Call Forwarding Status Card
-            FuturisticCard(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { navController.navigate(Screen.CallSettings.route) }
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            // ====================================================================
+            // PERSONALIZED WIDGET: VEDA AI BRIEFING HERO CARD (if enabled)
+            // ====================================================================
+            if (settings.dashboardWidgetAi) {
+                Spacer(modifier = Modifier.height(VedaSpacing.md))
+                VedaCard(
+                    accentColor = AccentViolet,
+                    onClick = { navController.navigate(Screen.AiAssistant.route) }
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Call,
-                        contentDescription = null,
-                        tint = if (settings.forwardCalls) CyberBlue else TextMuted,
-                        modifier = Modifier.size(20.dp)
+                    VedaCardHeader(
+                        label = "VEDA Neural Engine",
+                        statusText = "GEMINI ACTIVE",
+                        statusColor = AccentViolet
                     )
-                    PulseIndicator(
-                        color = if (settings.forwardCalls) MatrixGreen else AlertRed,
-                        size = 8.dp,
-                        isPulsing = settings.forwardCalls && connectionState.isConnected
-                    )
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "Calls Alert",
-                    color = TextWhite,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = if (settings.forwardCalls) "Forwarding (${settings.callsForwardedCount})" else "Disabled",
-                    color = if (settings.forwardCalls) MatrixGreen else TextMuted,
-                    fontSize = 12.sp
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        // Bluetooth Permission Informational Card (When required permissions are missing)
-        if (!hasBluetoothPermission) {
-            FuturisticCard(
-                glowBorder = true,
-                borderColor = if (permissionDeniedNotice) AlertRed else NeonCyan
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -367,278 +482,136 @@ fun DashboardScreen(
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
-                                .clip(CircleShape)
-                                .background(VedaSurfaceNavy),
+                                .clip(RoundedCornerShape(VedaRadii.sm))
+                                .background(AccentVioletDim),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Shield,
+                                imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = null,
-                                tint = if (permissionDeniedNotice) AlertRed else NeonCyan,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(20.dp),
+                                tint = AccentViolet
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(VedaSpacing.md))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (permissionDeniedNotice) "BLUETOOTH ACCESS REQUIRED" else "NEARBY DEVICES PERMISSION",
-                                color = TextWhite,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
+                                text = "AI Smart Summary & Actions",
+                                style = Typography.titleMedium,
+                                color = TextPrimary
                             )
                             Text(
-                                text = if (permissionDeniedNotice)
-                                    "Permission was denied. Please allow Nearby Devices / Bluetooth access in Settings to connect to VEDA."
-                                else
-                                    "Android 15 requires Bluetooth permissions to scan, connect, and sync with your VEDA smartwatch.",
-                                color = TextMuted,
-                                fontSize = 12.sp
+                                text = "Generate daily briefing, smart replies and summarize alerts",
+                                style = Typography.bodySmall,
+                                color = TextSecondary
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+
+            // ====================================================================
+            // PERSONALIZED WIDGET: 3 CUSTOMIZABLE QUICK ACTIONS (if enabled)
+            // ====================================================================
+            if (settings.dashboardWidgetQuickActions) {
+                Spacer(modifier = Modifier.height(VedaSpacing.md))
+                VedaCard {
+                    VedaCardHeader(
+                        label = "Tactical Quick Actions",
+                        statusText = "CUSTOMIZABLE",
+                        statusColor = AccentCyan
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        GlowingButton(
-                            onClick = {
-                                if (permissionDeniedNotice) {
-                                    context.startActivity(PermissionUtils.createAppDetailsSettingsIntent(context))
-                                } else {
-                                    bluetoothPermissionLauncher.launch(PermissionUtils.getRequiredBluetoothPermissions())
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = if (permissionDeniedNotice) "OPEN SETTINGS" else "GRANT PERMISSION",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
-                        GlowingOutlinedButton(
-                            onClick = { navController.navigate(Screen.PermissionsOnboarding.route) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = "VIEW DETAILS",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp
-                            )
+                        val actions = listOf(settings.quickAction1, settings.quickAction2, settings.quickAction3)
+                        actions.forEach { actionCode ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                renderQuickAction(
+                                    actionCode = actionCode,
+                                    isDndActive = isDndActive,
+                                    onFindWatch = { viewModel.findMyWatch() },
+                                    onWatchStudio = { navController.navigate(Screen.WatchStudio.route) },
+                                    onToggleDnd = { viewModel.toggleDnd() },
+                                    onEmergency = { navController.navigate(Screen.Guardian.route) },
+                                    onHaptics = { navController.navigate(Screen.HapticStudio.route) },
+                                    onHealth = { navController.navigate(Screen.Health.route) },
+                                    onMenu = { navController.navigate(Screen.GeneralSettings.route) }
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(VedaSpacing.lg))
         }
-
-        // Primary Connection & Sync Control Buttons
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (connectionState.isConnected) {
-                // Disconnect Button
-                DestructiveOutlinedButton(
-                    onClick = { viewModel.disconnect() }
-                ) {
-                    Text(
-                        text = "DISCONNECT WATCH",
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                }
-
-                // Sync Time Button
-                GlowingButton(
-                    onClick = { viewModel.syncTime() },
-                    enabled = !isSyncingTime
-                ) {
-                    if (isSyncingTime) {
-                        CircularProgressIndicator(
-                            color = VedaBlack,
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Sync,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    Text(
-                        text = if (isSyncingTime) "SYNCING TIME..." else "SYNC TIME NOW",
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                }
-
-                // Quick Test Notification Button
-                GlowingOutlinedButton(
-                    onClick = { viewModel.sendTestNotification() }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "SEND TEST ALERT TO WATCH",
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.5.sp
-                    )
-                }
-            } else {
-                // Connect Button
-                GlowingButton(
-                    onClick = {
-                        if (!hasBluetoothPermission) {
-                            bluetoothPermissionLauncher.launch(PermissionUtils.getRequiredBluetoothPermissions())
-                        } else {
-                            viewModel.connect()
-                        }
-                    },
-                    enabled = !connectionState.isBusy
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Bluetooth,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (connectionState.isBusy) "SEARCHING VEDA..." else "CONNECT VEDA WATCH",
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                }
-
-                // Bluetooth Discovery & Scan Screen Shortcut
-                GlowingOutlinedButton(
-                    onClick = {
-                        if (!hasBluetoothPermission) {
-                            bluetoothPermissionLauncher.launch(PermissionUtils.getRequiredBluetoothPermissions())
-                        } else {
-                            navController.navigate(Screen.Bluetooth.route)
-                        }
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Bluetooth,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "SEARCH NEARBY DEVICES",
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.5.sp
-                    )
-                }
-            }
-
-            // Settings Hub Button
-            GlowingOutlinedButton(
-                onClick = { navController.navigate(Screen.GeneralSettings.route) },
-                borderColor = BorderNavy,
-                contentColor = TextWhite
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "SETTINGS & HARDWARE INFO",
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.5.sp
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Navigation Quick Action Grid
-        Text(
-            text = "QUICK CONFIGURATION",
-            color = TextMuted,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            QuickNavChip(
-                icon = Icons.Default.Bluetooth,
-                label = "Bluetooth",
-                onClick = { navController.navigate(Screen.Bluetooth.route) },
-                modifier = Modifier.weight(1f)
-            )
-            QuickNavChip(
-                icon = Icons.Default.Notifications,
-                label = "Notifications",
-                onClick = { navController.navigate(Screen.NotificationSettings.route) },
-                modifier = Modifier.weight(1f)
-            )
-            QuickNavChip(
-                icon = Icons.Default.Call,
-                label = "Calls",
-                onClick = { navController.navigate(Screen.CallSettings.route) },
-                modifier = Modifier.weight(1f)
-            )
-            QuickNavChip(
-                icon = Icons.Default.Shield,
-                label = "Permissions",
-                onClick = { navController.navigate(Screen.PermissionsOnboarding.route) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
 @Composable
-private fun QuickNavChip(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+private fun renderQuickAction(
+    actionCode: String,
+    isDndActive: Boolean,
+    onFindWatch: () -> Unit,
+    onWatchStudio: () -> Unit,
+    onToggleDnd: () -> Unit,
+    onEmergency: () -> Unit,
+    onHaptics: () -> Unit,
+    onHealth: () -> Unit,
+    onMenu: () -> Unit
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(VedaCardNavy)
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center
+    val (title, icon, color, click) = when (actionCode) {
+        "WATCH_STUDIO" -> Quad("Faces", Icons.Default.Watch, AccentCyan, onWatchStudio)
+        "DND" -> Quad(if (isDndActive) "DND: ON" else "DND: OFF", Icons.Default.DoNotDisturbOn, if (isDndActive) StatusWarning else TextSecondary, onToggleDnd)
+        "EMERGENCY" -> Quad("SOS", Icons.Default.Security, StatusError, onEmergency)
+        "HAPTIC" -> Quad("Haptic", Icons.Default.Vibration, AccentCyan, onHaptics)
+        "HEALTH" -> Quad("Health", Icons.Default.Favorite, StatusError, onHealth)
+        "MENU" -> Quad("Menu", Icons.Default.Sync, AccentViolet, onMenu)
+        else -> Quad("Find", Icons.Default.FindReplace, AccentCyan, onFindWatch)
+    }
+
+    QuickActionPill(
+        title = title,
+        icon = icon,
+        accentColor = color,
+        onClick = click
+    )
+}
+
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+@Composable
+private fun QuickActionPill(
+    title: String,
+    icon: ImageVector,
+    accentColor: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(VedaRadii.md))
+            .background(SurfaceElevated)
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = NeonCyan,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = label,
-                color = TextWhite,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = accentColor
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = title,
+            style = Typography.labelMedium.copy(fontSize = 11.sp),
+            color = TextPrimary,
+            maxLines = 1
+        )
     }
 }

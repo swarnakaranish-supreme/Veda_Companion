@@ -14,8 +14,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -37,6 +40,9 @@ class BleManager(
 
     private val _isBluetoothEnabled = MutableStateFlow(bluetoothAdapter?.isEnabled == true)
     val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
+
+    private val _incomingNotificationFlow = MutableSharedFlow<String>(extraBufferCapacity = 64)
+    val incomingNotificationFlow: SharedFlow<String> = _incomingNotificationFlow.asSharedFlow()
 
     // Scanner component
     private val scanner = BleDeviceScanner(
@@ -60,6 +66,9 @@ class BleManager(
         },
         onDisconnectedUnexpectedly = { address, name ->
             handleUnexpectedDisconnection(address, name)
+        },
+        onNotificationReceived = { payload ->
+            _incomingNotificationFlow.tryEmit(payload)
         }
     )
 
@@ -145,6 +154,17 @@ class BleManager(
     }
 
     fun connect(address: String, name: String? = null, autoReconnect: Boolean = true): Boolean {
+        // Prevent duplicate BLE connections
+        val currentState = _connectionState.value
+        if (currentState is BleConnectionState.Connected && currentState.deviceAddress.equals(address, ignoreCase = true)) {
+            logRepository.log("BLE_CONNECT", "Already connected to $address. Ignoring duplicate connection request.")
+            return true
+        }
+        if (currentState is BleConnectionState.Connecting && currentState.deviceAddress.equals(address, ignoreCase = true)) {
+            logRepository.log("BLE_CONNECT", "Already connecting to $address. Ignoring duplicate connection request.")
+            return true
+        }
+
         stopScan()
         cancelActiveReconnection()
         cancelStandbyWatchdog()
@@ -188,6 +208,17 @@ class BleManager(
         stopScan()
         gattClient.disconnect()
     }
+
+    fun setAutoReconnectEnabled(enabled: Boolean) {
+        isAutoReconnectEnabled = enabled
+        if (!enabled) {
+            cancelActiveReconnection()
+            cancelStandbyWatchdog()
+        }
+        logRepository.log("BLE_CONFIG", "Auto-reconnection set to $enabled")
+    }
+
+    fun isAutoReconnect(): Boolean = isAutoReconnectEnabled
 
     /**
      * Handles unexpected disconnection using controlled progressive backoff and standby watchdog.
@@ -342,6 +373,20 @@ class BleManager(
 
     suspend fun sendPayloadDirect(payload: String): Boolean {
         return gattClient.sendPayloadDirect(payload)
+    }
+
+    fun startHealthMeasurement() {
+        managerScope.launch {
+            sendPayloadDirect(BleProtocol.CMD_START_MEASUREMENT)
+            logRepository.log("HEALTH", "Sent M|START to watch")
+        }
+    }
+
+    fun stopHealthMeasurement() {
+        managerScope.launch {
+            sendPayloadDirect(BleProtocol.CMD_STOP_MEASUREMENT)
+            logRepository.log("HEALTH", "Sent M|STOP to watch")
+        }
     }
 
     fun readRssi() {

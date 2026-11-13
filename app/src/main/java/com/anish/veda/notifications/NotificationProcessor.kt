@@ -16,6 +16,7 @@ class NotificationProcessor(
     private val context: Context,
     private val bleManager: BleManager,
     private val preferencesRepository: PreferencesRepository,
+    private val settingsRepository: NotificationSettingsRepository,
     private val logRepository: LogRepository
 ) {
     /**
@@ -105,27 +106,45 @@ class NotificationProcessor(
 
     /**
      * Formats and enqueues notification for ESP32 transmission:
-     * Format: N|0|APP_NAME|TITLE|MESSAGE
+     * Format: N|category|APP_NAME|TITLE|MESSAGE
      */
     fun processAndForward(
         packageName: String,
         rawTitle: String,
-        rawText: String
+        rawText: String,
+        category: Int
     ) {
         val appName = resolveAppName(packageName)
         val maxMsgLen = preferencesRepository.settingsFlow.value.maxMessageLength
 
-        // Build standard N|0|APP_NAME|TITLE|MESSAGE packet with pipe sanitization and field truncation
-        val packet = BleProtocol.buildNormalNotificationPacket(
-            appName = appName,
-            title = rawTitle,
-            message = rawText,
-            maxMessageLen = maxMsgLen
+        // Apply Privacy Mode if enabled by user
+        val isPrivacy = settingsRepository.privacyModeEnabled.value
+        val hideSender = settingsRepository.hideSenderInPrivacy.value
+
+        val effectiveTitle = if (isPrivacy && hideSender) {
+            "VEDA Notification"
+        } else {
+            rawTitle
+        }
+
+        val effectiveMessage = if (isPrivacy) {
+            "[Content Hidden for Privacy]"
+        } else {
+            rawText
+        }
+
+        // Build standard N|category|APP_NAME|TITLE|MESSAGE packet with pipe sanitization and truncation
+        val packet = BleProtocol.buildNotificationPacket(
+            category = category,
+            app = appName,
+            title = effectiveTitle,
+            message = effectiveMessage,
+            customMaxMsgLength = maxMsgLen
         )
 
         logRepository.log(
             "NOTIF_PROC",
-            "Forwarding [$appName]: \"$rawTitle\"",
+            "Forwarding cat=$category [$appName]: \"$effectiveTitle\"",
             LogDirection.OUTBOUND,
             packet
         )
@@ -133,7 +152,7 @@ class NotificationProcessor(
         // Queue packet into serialized write queue
         bleManager.enqueuePayload(packet)
         preferencesRepository.incrementNotificationCount()
-        lastForwardedNotification = "[$appName] $rawTitle"
+        lastForwardedNotification = "[$appName] $effectiveTitle"
         lastForwardedTimestamp = System.currentTimeMillis()
     }
 

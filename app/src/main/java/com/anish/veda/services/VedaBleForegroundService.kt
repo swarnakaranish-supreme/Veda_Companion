@@ -356,9 +356,6 @@ class VedaBleForegroundService : Service() {
         return builder.build()
     }
 
-        return builder.build()
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         try {

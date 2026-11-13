@@ -5,19 +5,22 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Build
 import com.anish.veda.data.model.LogDirection
 import com.anish.veda.data.repository.LogRepository
 import kotlinx.coroutines.flow.StateFlow
+import java.nio.charset.StandardCharsets
 
 @SuppressLint("MissingPermission")
 class BleGattClient(
     private val context: Context,
     private val logRepository: LogRepository,
     private val onConnectionStateChanged: (BleConnectionState) -> Unit,
-    private val onDisconnectedUnexpectedly: (deviceAddress: String, deviceName: String?) -> Unit
+    private val onDisconnectedUnexpectedly: (deviceAddress: String, deviceName: String?) -> Unit,
+    val onNotificationReceived: ((String) -> Unit)? = null
 ) {
     private var bluetoothGatt: BluetoothGatt? = null
     private var writeCharacteristic: BluetoothGattCharacteristic? = null
@@ -172,6 +175,24 @@ class BleGattClient(
 
             writeCharacteristic = characteristic
 
+            // Enable notifications on this characteristic if supported
+            val hasNotify = (props and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0
+            if (hasNotify && gatt != null) {
+                gatt.setCharacteristicNotification(characteristic, true)
+                val cccd = characteristic.getDescriptor(BleConstants.CCCD_UUID)
+                if (cccd != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                        @Suppress("DEPRECATION")
+                        gatt.writeDescriptor(cccd)
+                    }
+                    logRepository.log("BLE_GATT", "CCCD notification descriptor written for ${characteristic.uuid}")
+                }
+            }
+
             // Only mark connected when GATT, MTU, Service and Writable Characteristic are all verified!
             logRepository.log("BLE_GATT", "All GATT stages verified! VEDA Smartwatch is ONLINE.")
             onConnectionStateChanged(
@@ -212,6 +233,29 @@ class BleGattClient(
                     )
                 )
             }
+        }
+
+        // Android 13+ (API 33+)
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
+        ) {
+            val payload = String(value, StandardCharsets.UTF_8)
+            logRepository.log("BLE_NOTIFY", "Received: $payload", LogDirection.INBOUND)
+            onNotificationReceived?.invoke(payload)
+        }
+
+        // Pre-Android 13
+        @Deprecated("Deprecated in Java")
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt?,
+            characteristic: BluetoothGattCharacteristic?
+        ) {
+            val bytes = characteristic?.value ?: return
+            val payload = String(bytes, StandardCharsets.UTF_8)
+            logRepository.log("BLE_NOTIFY", "Received: $payload", LogDirection.INBOUND)
+            onNotificationReceived?.invoke(payload)
         }
     }
 
