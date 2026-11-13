@@ -3,6 +3,8 @@ package com.anish.veda.bluetooth
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
@@ -74,9 +76,9 @@ class BleDeviceScanner(
         } == true
 
         // Check if device advertises the exact firmware name "ANISH-WATCH" or variant
-        val matchesName = name?.equals(BleConstants.DEFAULT_DEVICE_NAME, ignoreCase = true) == true ||
-                name?.contains("ANISH-WATCH", ignoreCase = true) == true ||
-                name?.contains("VEDA", ignoreCase = true) == true
+        val matchesName = name?.contains("ANISH", ignoreCase = true) == true ||
+                name?.contains("VEDA", ignoreCase = true) == true ||
+                name?.contains("WATCH", ignoreCase = true) == true
 
         val isVedaWatch = hasVedaService || matchesName
 
@@ -126,7 +128,60 @@ class BleDeviceScanner(
 
         stopScan()
 
-        _scannedDevices.value = emptyList()
+        val initialList = mutableListOf<BleDeviceModel>()
+
+        // 1. Check devices already paired/bonded in Android system settings
+        try {
+            adapter.bondedDevices?.forEach { device ->
+                val name = device.name
+                val address = device.address
+                val isVeda = name?.contains("ANISH", ignoreCase = true) == true ||
+                        name?.contains("VEDA", ignoreCase = true) == true ||
+                        name?.contains("WATCH", ignoreCase = true) == true
+                if (isVeda) {
+                    initialList.add(
+                        BleDeviceModel(
+                            name = name ?: BleConstants.DEFAULT_DEVICE_NAME,
+                            address = address,
+                            rssi = -50,
+                            isVedaWatch = true,
+                            lastSeenTimestamp = System.currentTimeMillis()
+                        )
+                    )
+                    logRepository.log("BLE_SCAN", "Found bonded VEDA watch: $name [$address]")
+                }
+            }
+        } catch (e: Exception) {
+            logRepository.log("BLE_SCAN", "Error reading bonded devices: ${e.message}")
+        }
+
+        // 2. Check devices currently connected via GATT to the phone OS
+        try {
+            val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            btManager?.getConnectedDevices(BluetoothProfile.GATT)?.forEach { device ->
+                val name = device.name
+                val address = device.address
+                val isVeda = name?.contains("ANISH", ignoreCase = true) == true ||
+                        name?.contains("VEDA", ignoreCase = true) == true ||
+                        name?.contains("WATCH", ignoreCase = true) == true
+                if (isVeda && initialList.none { it.address == address }) {
+                    initialList.add(
+                        BleDeviceModel(
+                            name = name ?: BleConstants.DEFAULT_DEVICE_NAME,
+                            address = address,
+                            rssi = -40,
+                            isVedaWatch = true,
+                            lastSeenTimestamp = System.currentTimeMillis()
+                        )
+                    )
+                    logRepository.log("BLE_SCAN", "Found system-connected GATT VEDA watch: $name [$address]")
+                }
+            }
+        } catch (e: Exception) {
+            logRepository.log("BLE_SCAN", "Error reading connected GATT devices: ${e.message}")
+        }
+
+        _scannedDevices.value = initialList
         _isScanning.value = true
 
         logRepository.log("BLE_SCAN", "Starting BLE discovery (filters: UUID ${BleConstants.SERVICE_UUID_STRING}, name ${BleConstants.DEFAULT_DEVICE_NAME})...")

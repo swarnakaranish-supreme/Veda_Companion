@@ -177,23 +177,44 @@ class BleGattClient(
 
             // Enable notifications on this characteristic if supported
             val hasNotify = (props and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0
+            var descriptorWritePending = false
             if (hasNotify && gatt != null) {
                 gatt.setCharacteristicNotification(characteristic, true)
                 val cccd = characteristic.getDescriptor(BleConstants.CCCD_UUID)
                 if (cccd != null) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                    val writeOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == BluetoothGatt.GATT_SUCCESS
                     } else {
                         @Suppress("DEPRECATION")
                         cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                         @Suppress("DEPRECATION")
                         gatt.writeDescriptor(cccd)
                     }
-                    logRepository.log("BLE_GATT", "CCCD notification descriptor written for ${characteristic.uuid}")
+                    if (writeOk) {
+                        descriptorWritePending = true
+                        logRepository.log("BLE_GATT", "CCCD notification descriptor written for ${characteristic.uuid}, waiting for callback...")
+                    }
                 }
             }
 
-            // Only mark connected when GATT, MTU, Service and Writable Characteristic are all verified!
+            // Only complete connection if no descriptor write is pending
+            if (!descriptorWritePending) {
+                completeConnection(address, name, gatt)
+            }
+        }
+
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt?,
+            descriptor: BluetoothGattDescriptor?,
+            status: Int
+        ) {
+            val address = targetAddress ?: ""
+            val name = targetName ?: BleConstants.DEFAULT_DEVICE_NAME
+            logRepository.log("BLE_GATT", "CCCD descriptor write completed (status: $status). GATT pipeline clear.")
+            completeConnection(address, name, gatt)
+        }
+
+        private fun completeConnection(address: String, name: String, gatt: BluetoothGatt?) {
             logRepository.log("BLE_GATT", "All GATT stages verified! VEDA Smartwatch is ONLINE.")
             onConnectionStateChanged(
                 BleConnectionState.Connected(
@@ -202,9 +223,7 @@ class BleGattClient(
                     mtu = currentMtu
                 )
             )
-
-            // Read initial RSSI
-            gatt.readRemoteRssi()
+            gatt?.readRemoteRssi()
         }
 
         override fun onCharacteristicWrite(

@@ -35,8 +35,12 @@ class TimeSyncManager(
                 if (state is BleConnectionState.Connected) {
                     val settings = preferencesRepository.settingsFlow.value
                     if (settings.autoSyncTimeOnConnect) {
-                        delay(600) // Brief delay to let the ESP32 settle after GATT discovery
-                        syncTimeNow()
+                        delay(1000) // Brief delay to let the ESP32 settle after GATT discovery
+                        val success = syncTimeNow()
+                        if (!success) {
+                            delay(1500)
+                            syncTimeNow() // Retry once if needed
+                        }
                     }
                 }
             }
